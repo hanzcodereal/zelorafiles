@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZeloraFiles — Temporary File Hosting</title>
+  <meta name="description" content="Upload files and share them temporarily. Files are deleted automatically after your chosen time.">
+  <meta name="theme-color" content="#0a0a0c">
+  <link rel="icon" href="/favicon.png" type="image/png">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="container">
+
+      <!-- Navbar -->
+      <div class="navbar">
+        <a href="/" class="navbar-brand">
+          <span class="navbar-logo-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </span>
+          <span>ZeloraFiles</span>
+        </a>
+        <nav class="navbar-links">
+          <a href="#how-it-works">How it works</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+      </div>
+
+      <!-- Header -->
+      <div class="header">
+        <div class="logo">ZeloraFiles</div>
+        <div class="tagline">Temporary file hosting, done the simple way</div>
+      </div>
+
+      <!-- Upload form -->
+      <div class="box" id="upload-box">
+
+        <!-- Drop zone -->
+        <div class="upload-area" id="drop-zone" role="button" tabindex="0" aria-label="Click to choose file or drag and drop">
+          <span class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/><path d="M7 9l5-5 5 5"/><path d="M12 4.5V15"/></svg>
+          </span>
+          <strong>Choose a file</strong>
+          <div class="hint">or drag and drop it here</div>
+          <input type="file" id="file-input" aria-hidden="true">
+        </div>
+
+        <!-- Selected file name -->
+        <div id="file-info">No file selected.</div>
+
+        <!-- Expiry selection -->
+        <div class="expiry-group">
+          <label>Expiration</label>
+          <div class="expiry-options">
+            <label><input type="radio" name="hours" value="1" checked><span>1 Hour</span></label>
+            <label><input type="radio" name="hours" value="2"><span>2 Hours</span></label>
+            <label><input type="radio" name="hours" value="3"><span>3 Hours</span></label>
+            <label><input type="radio" name="hours" value="24"><span>24 Hours</span></label>
+            <label><input type="radio" name="hours" value="0"><span>Permanent</span></label>
+          </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="upload-actions">
+          <button class="btn btn-primary" id="upload-btn" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/><path d="M7 9l5-5 5 5"/><path d="M12 4.5V15"/></svg>
+            <span>Upload File</span>
+          </button>
+          <span id="upload-status"></span>
+        </div>
+
+        <!-- Progress -->
+        <div id="progress-wrap">
+          <div class="steps" id="steps">
+            <div class="step" data-step="preparing"><span class="step-dot"></span><span class="step-label">Preparing</span></div>
+            <div class="step" data-step="uploading"><span class="step-dot"></span><span class="step-label">Uploading</span></div>
+            <div class="step" data-step="processing"><span class="step-dot"></span><span class="step-label">Processing</span></div>
+            <div class="step" data-step="completed"><span class="step-dot"></span><span class="step-label">Completed</span></div>
+          </div>
+          <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+          <div id="progress-text">Preparing…</div>
+        </div>
+
+        <!-- Error message -->
+        <div id="upload-error" class="msg error" style="display:none;"></div>
+      </div>
+
+      <!-- Result box (shown after upload) -->
+      <div class="box" id="result">
+        <div class="result-badge">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+          <span>Upload complete</span>
+        </div>
+        <div class="expiry-info" id="expiry-info"></div>
+
+        <div class="result-row">
+          <span class="result-label">Link</span>
+          <span class="result-url" id="result-url"></span>
+          <button class="btn btn-sm" id="copy-btn" type="button">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            <span>Copy</span>
+          </button>
+        </div>
+
+        <div class="result-row">
+          <span class="result-label">File</span>
+          <span id="result-filename" class="result-filename"></span>
+        </div>
+
+        <div class="result-row">
+          <a class="btn btn-sm btn-primary" id="download-link" href="#" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+            <span>Download</span>
+          </a>
+          <button class="btn btn-sm" id="new-upload-btn" type="button">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16"/><path d="M4 12h16"/></svg>
+            <span>Upload another</span>
+          </button>
+        </div>
+
+        <p class="result-note">This file can only be removed automatically when it expires. There is no delete option — share the link only with people you trust.</p>
+
+        <div id="result-msg" class="msg" style="display:none;"></div>
+      </div>
+
+      <!-- How it works -->
+      <div class="box info-box" id="how-it-works">
+        <h2 class="info-title">How it works</h2>
+        <ol class="info-list">
+          <li>Choose or drag a file (up to 50&nbsp;MB) and pick an expiration time.</li>
+          <li>Click <strong>Upload File</strong> — watch real upload progress from 0% to 100%.</li>
+          <li>Get a shareable link the moment processing finishes.</li>
+          <li>The file deletes itself automatically once it expires. No manual delete, ever.</li>
+        </ol>
+      </div>
+
+      <div class="box info-box" id="faq">
+        <h2 class="info-title">FAQ</h2>
+        <p><strong>Can I delete a file myself?</strong> No — by design, files can only disappear through expiration. This keeps shared links reliable for their intended lifetime.</p>
+        <p><strong>What happens after expiry?</strong> The link returns a 410 Expired page and the file is permanently removed.</p>
+        <p><strong>Is there a size limit?</strong> Yes, 50&nbsp;MB per file.</p>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>Simple temporary file sharing &middot; Max 50&nbsp;MB per file &middot; Files are removed automatically after expiry, never manually.</p>
+        <p class="footer-links"><a href="#how-it-works">How it works</a><span aria-hidden="true">&middot;</span><a href="#faq">FAQ</a></p>
+        <p class="footer-credit">Made by Hanz &middot; <a href="https://saweria.co/hanzreally" target="_blank" rel="noopener noreferrer">Support via Saweria</a></p>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
