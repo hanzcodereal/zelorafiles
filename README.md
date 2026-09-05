@@ -129,7 +129,7 @@ zelorafiles/
 ### Installation
 
 ```bash
-git clone https://github.com/your-org/zelorafiles.git
+git clone https://github.com/hanzcodereal/zelorafiles.git
 cd zelorafiles
 npm install
 ```
