@@ -205,7 +205,7 @@ create policy "Allow anon delete from zelorafiles"
 ### Configuration
 
 The Supabase project URL and publishable (anon) key are hardcoded directly in
-`src/lib/supabase.js` — no `.env` file is needed for those. They're safe to
+`src/lib/supabase.js` — no `.env` file is used for those. They're safe to
 keep in source because the publishable/anon key is designed to be exposed
 client-side (Supabase enforces access via Row Level Security policies, not by
 keeping this key secret).
@@ -222,7 +222,7 @@ const SUPABASE_KEY = 'your-publishable-anon-key';
 
 | Variable      | Required | Description                                                                 |
 |---------------|:--------:|-------------------------------------------------------------------------------|
-| `CRON_SECRET` | Yes      | Random secret used to authorize the `/cron/cleanup` endpoint (Bearer token). This one stays a real secret and must be set as an environment variable — never commit it to source. |
+| `CRON_SECRET` | Yes      | Random secret used to authorize the `/cron/cleanup` endpoint (Bearer token). This one stays a real secret — set it under **Vercel → Settings → Environment Variables**, never commit it to source or put it in a file. |
 
 Generate a strong `CRON_SECRET`, for example:
 
