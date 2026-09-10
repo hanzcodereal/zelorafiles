@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://qupucvrapnyokqvqoyoy.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_RvU0Xvqfja4UyPHyiCNZsA_W3IRuJHr';
+// Hardcoded on purpose — no .env file is used in this project.
+// This is the publishable/anon key, which is meant to be exposed; access
+// is enforced by the Row Level Security policies on the Supabase side
+// (see README → Supabase Setup), not by keeping this value secret.
+const SUPABASE_URL = 'https://fgopzmmwwwptbiryxzgq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_kQ9Z8zC70e5JpyPJc6mafg_klXfhcEE';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: false },
