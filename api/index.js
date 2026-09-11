@@ -35,6 +35,24 @@ export default async function handler(req, res) {
     res.setHeader(key, value);
   });
 
-  const responseBody = await response.arrayBuffer();
-  res.end(Buffer.from(responseBody));
-                             }
+  // Streamed rather than buffered fully into memory first. This matters
+  // more than it used to: GET /f/:id now proxies file bytes (up to 50 MB)
+  // through this function instead of 302-redirecting the browser straight
+  // to Supabase Storage, so keeping this a stream avoids doubling peak
+  // memory usage on downloads.
+  if (!response.body) {
+    res.end();
+    return;
+  }
+
+  const reader = response.body.getReader();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+  } finally {
+    res.end();
+  }
+}
