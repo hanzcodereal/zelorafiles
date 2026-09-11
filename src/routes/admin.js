@@ -25,7 +25,8 @@ admin.get('/', async (c) => {
     loadError = 'Could not load files from the database.';
   }
 
-  return c.html(dashboardPage(files, loadError));
+  const deleteError = c.req.query('deleteError');
+  return c.html(dashboardPage(files, loadError, deleteError));
 });
 
 admin.post('/login', async (c) => {
@@ -79,6 +80,11 @@ admin.post('/delete/:id', async (c) => {
     }
   } catch (err) {
     console.error('[Admin] Delete error:', err);
+    // Surface the failure instead of redirecting as if it succeeded — the
+    // most likely cause is a missing Supabase RLS "delete" policy on the
+    // `files` table or the `zelorafiles` storage bucket (see README →
+    // Security / Supabase Setup).
+    return c.redirect(`/admin?deleteError=${encodeURIComponent(err.message)}`, 302);
   }
 
   return c.redirect('/admin', 302);
@@ -114,7 +120,7 @@ function loginPage(error) {
   });
 }
 
-function dashboardPage(files, loadError) {
+function dashboardPage(files, loadError, deleteError) {
   const rows = files.map((f) => {
     const expired = f.expires_at !== 0 && Date.now() > f.expires_at;
     const expiry = f.expires_at === 0 ? 'Permanent' : new Date(f.expires_at).toLocaleString();
@@ -143,6 +149,7 @@ function dashboardPage(files, loadError) {
         <form method="POST" action="/admin/logout"><button class="btn btn-sm" type="submit">Log out</button></form>
       </div>
       ${loadError ? `<div class="msg error">${escapeHtml(loadError)}</div>` : ''}
+      ${deleteError ? `<div class="msg error">Delete failed: ${escapeHtml(deleteError)} — check your Supabase RLS "delete" policies (see README → Security).</div>` : ''}
       ${files.length === 0 && !loadError ? '<p class="state-text">No files yet.</p>' : ''}
       ${files.length > 0 ? `
       <div class="admin-table-wrap">

@@ -28,7 +28,9 @@ file.get('/:id', async (c) => {
     }
 
     if (record.expires_at !== 0 && Date.now() > record.expires_at) {
-      await deleteFileRecord(record.id, record.storage_path).catch(() => {});
+      await deleteFileRecord(record.id, record.storage_path).catch((err) => {
+        console.error('[File] Failed to delete expired file on access:', err.message);
+      });
       return c.html(expiredPage(), 410);
     }
 
@@ -79,7 +81,9 @@ file.get('/:id/info', async (c) => {
       // Same lazy-delete-on-access as the download route above, so an
       // expired file's row (and storage object) is removed the moment
       // anything touches it, not only when /f/:id itself is opened.
-      await deleteFileRecord(record.id, record.storage_path).catch(() => {});
+      await deleteFileRecord(record.id, record.storage_path).catch((err) => {
+        console.error('[File] Failed to delete expired file on access (info):', err.message);
+      });
       return c.json({ error: 'File has expired.' }, 410);
     }
 
