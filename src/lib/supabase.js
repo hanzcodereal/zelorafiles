@@ -118,9 +118,30 @@ export async function findFileById(id) {
   return data;
 }
 
+// Deletes both the storage object and the database row. Unlike before, this
+// now surfaces failures instead of silently swallowing them — a silent
+// failure here (e.g. missing Supabase RLS "delete" policy) used to look
+// exactly like a successful delete from the caller's point of view, even
+// though the file was still sitting in Storage/the database afterwards.
 export async function deleteFileRecord(id, storagePath) {
-  await supabase.storage.from(BUCKET).remove([storagePath]).catch(() => {});
-  await supabase.from(TABLE).delete().eq('id', id).catch(() => {});
+  const storageResult = await supabase.storage.from(BUCKET).remove([storagePath]);
+  if (storageResult.error) {
+    console.error(`[deleteFileRecord] Storage delete failed for "${storagePath}":`, storageResult.error.message);
+  }
+
+  const dbResult = await supabase.from(TABLE).delete().eq('id', id);
+  if (dbResult.error) {
+    console.error(`[deleteFileRecord] Database delete failed for id="${id}":`, dbResult.error.message);
+  }
+
+  if (storageResult.error || dbResult.error) {
+    // Most common cause: the "Allow anon delete" RLS policies from the
+    // README haven't been created yet on the `files` table and/or the
+    // `zelorafiles` storage bucket.
+    throw new Error(
+      storageResult.error?.message || dbResult.error?.message || 'Delete failed for an unknown reason.'
+    );
+  }
 }
 
 export function getPublicUrl(storagePath) {
@@ -192,9 +213,13 @@ export async function cleanupExpired() {
     const ids = data.map((row) => row.id);
 
     if (paths.length > 0) {
-      await supabase.storage.from(BUCKET).remove(paths).catch(() => {});
-      await supabase.from(TABLE).delete().in('id', ids).catch(() => {});
-      deleted += data.length;
+      const { error: storageErr } = await supabase.storage.from(BUCKET).remove(paths);
+      if (storageErr) console.error('[cleanupExpired] Storage remove failed:', storageErr.message);
+
+      const { error: dbErr } = await supabase.from(TABLE).delete().in('id', ids);
+      if (dbErr) console.error('[cleanupExpired] Database delete failed:', dbErr.message);
+
+      if (!storageErr && !dbErr) deleted += data.length;
     }
 
     if (data.length < pageSize) break;
