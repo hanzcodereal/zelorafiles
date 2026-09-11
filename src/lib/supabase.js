@@ -128,6 +128,41 @@ export function getPublicUrl(storagePath) {
   return data.publicUrl;
 }
 
+// Downloads the raw file bytes from Supabase Storage server-side, so the
+// route handler can stream them back under our own domain instead of
+// redirecting the browser to the Supabase storage URL. Returns a Blob.
+export async function downloadFile(storagePath) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
+  if (error) {
+    throw new Error(`Storage download failed: ${error.message}`);
+  }
+  return data;
+}
+
+// The extension is purely cosmetic — appended to /f/:id links so a shared
+// URL shows a recognizable filename (e.g. /f/8FeC5N7rFF.jpg). Lookups strip
+// it back off before hitting the database, so it's never load-bearing.
+export function getExtension(filename) {
+  if (!filename || !filename.includes('.')) return '';
+  const ext = filename.slice(filename.lastIndexOf('.'));
+  return /^\.[a-zA-Z0-9]{1,15}$/.test(ext) ? ext : '';
+}
+
+// Used by the admin dashboard to list every non-expired-or-not file.
+export async function listFiles(limit = 300) {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Database list failed: ${error.message}`);
+  }
+
+  return data || [];
+}
+
 // NOTE: There is intentionally no manual "delete by user" function here.
 // Files only ever disappear once their expires_at has passed — see
 // src/routes/file.js (checked on access) and cleanupExpired (swept daily).
