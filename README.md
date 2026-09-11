@@ -51,9 +51,11 @@ It's built to be **simple, fast, and cheap to run**: a single Hono app on Vercel
 serverless runtime, backed by **Supabase** for both file storage and metadata (expiry,
 filename, size).
 
-> **Design principle:** once a file is uploaded, **nobody can delete it manually** —
-> not the uploader, not an admin panel, nobody. The only thing that removes a file is
-> its own expiration timer. See [Security](#security) for why.
+> **Design principle:** the public never gets a delete button. A file is removed
+> automatically the moment its expiration timer passes (checked on every access,
+> and swept daily by cron) — the only exception is the password-protected
+> `/admin` dashboard, which can remove a file early if you (the operator) need to.
+> See [Security](#security) for details.
 
 ---
 
@@ -69,7 +71,12 @@ filename, size).
   the actual bytes live in a **Supabase Storage** bucket
 - Blocked executable extensions (`.exe`, `.bat`, `.cmd`, `.sh`, `.ps1`, `.vbs`, `.com`, `.scr`, `.msi`)
 - Fully responsive, mobile-first layout
-- Dark, high-contrast interface with crisp inline SVG icons — no emoji, no icon fonts
+- Strict black & white interface with crisp inline SVG icons — no emoji, no icon fonts, no color anywhere
+- Download links (`/f/:id.ext`) are served directly from your own domain — the app
+  fetches the bytes from Supabase Storage server-side and streams them back, so the
+  Supabase project URL is never exposed to visitors
+- Password-protected `/admin` dashboard (credentials in `admin.json`) to view all
+  uploaded files and delete one early if needed
 
 ---
 
@@ -99,16 +106,19 @@ zelorafiles/
 │   ├── app.js             # Hono app: routing + static file serving
 │   ├── lib/
 │   │   ├── supabase.js     # Supabase client + storage/database helpers, validation
+│   │   ├── admin.js         # admin.json credential check + signed session cookie
 │   │   ├── icons.js         # Shared inline SVG icons for server-rendered pages
 │   │   └── page.js          # Shared HTML shell (navbar/footer) for server-rendered pages
 │   └── routes/
 │       ├── upload.js        # POST /upload
-│       ├── file.js          # GET /f/:id, GET /f/:id/info
-│       └── cron.js          # GET /cron/cleanup (protected by CRON_SECRET)
+│       ├── file.js          # GET /f/:id (proxied download), GET /f/:id/info
+│       ├── cron.js          # GET /cron/cleanup (protected by CRON_SECRET)
+│       └── admin.js         # GET/POST /admin — login, dashboard, delete, logout
 ├── public/
-│   ├── index.html          # Single-page upload UI (dark theme, inline SVG icons)
+│   ├── index.html          # Single-page upload UI (black & white theme, inline SVG icons)
 │   ├── app.js               # Upload logic: XHR + real progress + status stepper
-│   └── style.css            # Dark theme styling, responsive
+│   └── style.css            # Black & white theme styling, responsive
+├── admin.json                # Admin username/password (change before deploying!)
 ├── vercel.json              # Rewrites + cron schedule
 ├── package.json
 ├── LICENSE
@@ -129,7 +139,7 @@ zelorafiles/
 ### Installation
 
 ```bash
-git clone https://github.com/hanzcodereal/zelorafiles.git
+git clone https://github.com/yhttps://github.com/hanzcodereal/zelorafiles.git
 cd zelorafiles
 npm install
 ```
@@ -331,9 +341,13 @@ Expiration is stored as a column (`expires_at`) on the `files` table:
 | Method | Endpoint          | Description                                                        |
 |--------|-------------------|----------------------------------------------------------------------|
 | `POST` | `/upload`          | Upload a file. `multipart/form-data` with fields `file`, `hours`.   |
-| `GET`  | `/f/:id`            | Redirects (302) to the file's public Supabase Storage URL, or `404` / `410` HTML page. |
+| `GET`  | `/f/:id` or `/f/:id.ext` | Streams the file directly from this domain (server fetches it from Supabase Storage internally), or `404` / `410` HTML page. The `.ext` suffix is cosmetic and optional. |
 | `GET`  | `/f/:id/info`        | Returns JSON metadata for a file (no redirect).                     |
 | `GET`  | `/cron/cleanup`      | Sweeps expired files. Requires `Authorization: Bearer <CRON_SECRET>`. |
+| `GET`  | `/admin`             | Login form, or the file dashboard if already logged in.             |
+| `POST` | `/admin/login`       | Log in with the credentials from `admin.json`.                      |
+| `POST` | `/admin/logout`      | Clears the admin session cookie.                                    |
+| `POST` | `/admin/delete/:id`  | Deletes a file (storage object + database row) immediately. Requires an active admin session. |
 
 <details>
 <summary><strong>POST /upload — request / response</strong></summary>
@@ -355,7 +369,7 @@ Expiration is stored as a column (`expires_at`) on the `files` table:
   "size": 123456,
   "expiresAt": 1893456000000,
   "permanent": false,
-  "url": "/f/aB3xQ9zL2k"
+  "url": "/f/aB3xQ9zL2k.pdf"
 }
 ```
 
@@ -377,23 +391,54 @@ Expiration is stored as a column (`expires_at`) on the `files` table:
   "size": 123456,
   "expiresAt": 1893456000000,
   "permanent": false,
-  "downloadUrl": "/f/aB3xQ9zL2k"
+  "downloadUrl": "/f/aB3xQ9zL2k.pdf"
 }
 ```
 </details>
 
-> There is intentionally **no `DELETE` endpoint**. See [Security](#security).
+> There is intentionally **no public `DELETE` endpoint** — only the
+> password-protected `/admin/delete/:id`. See [Security](#security).
+
+---
+
+## Admin Panel
+
+`/admin` is a minimal, password-protected dashboard for the operator (not for
+end users — nothing links to it from the public UI):
+
+1. **Set your credentials.** Edit `admin.json` at the project root before you
+   deploy:
+   ```json
+   { "username": "admin", "password": "pick-a-strong-password" }
+   ```
+   The default value shipped in this repo is a placeholder — change it first.
+2. **Log in** at `/admin`. A signed, `httpOnly`, `Strict` session cookie
+   (`zf_admin_session`, 12h expiry) is issued on success — there's no
+   database-backed session table. Changing the password in `admin.json`
+   instantly invalidates every existing session, since the cookie's signature
+   is derived from the credentials themselves.
+3. **View and delete.** The dashboard lists every row in the `files` table
+   (filename, size, expiry, link) with a **Delete** button per row. Deleting
+   removes both the Supabase Storage object and the database row right away —
+   this is the one path in the whole app that bypasses the "only expiration
+   removes a file" rule, and it's gated behind login for exactly that reason.
+
+> **`admin.json` holds a real password in plain text.** If this repository is
+> or ever becomes public (e.g. pushed to GitHub), treat that file as a secret:
+> don't commit your real credentials to a public repo. For a private repo or a
+> CLI-only (`vercel --prod`) deployment this is low-risk, but if you want
+> extra safety, keep a local-only copy with the real password and commit only
+> a placeholder.
 
 ---
 
 ## Security
 
-- **No manual deletion, anywhere.** There is no delete button in the UI, no
-  client-side delete request, and no `DELETE` route on the server. A file's
-  lifecycle is controlled entirely by the expiration time chosen at upload —
-  this keeps shared links trustworthy for their stated duration and prevents
-  a link recipient (or anyone else) from prematurely destroying a file another
-  person is relying on.
+- **No public deletion.** There is no delete button or `DELETE` route reachable
+  by an ordinary visitor. A file's lifecycle is controlled by its expiration
+  time — checked on every access and swept daily by cron — with one deliberate
+  exception: the operator-only `/admin` dashboard (see above), which requires
+  a valid login.
 - **Filename sanitization** — uploaded filenames are stripped to safe
   characters (`[a-zA-Z0-9._-]`) before being used in the storage path;
   path traversal sequences (`/`, `\`, `..`) are rejected outright.
@@ -408,6 +453,13 @@ Expiration is stored as a column (`expires_at`) on the `files` table:
 - **Row Level Security** — the `files` table and `zelorafiles` storage bucket
   are gated by explicit Postgres RLS policies (see [Supabase Setup](#supabase-setup))
   rather than being wide open by default.
+- **No exposed storage URL** — `GET /f/:id` fetches the file server-side and
+  streams it back under your own domain; the Supabase project URL never
+  appears in a link a visitor sees or copies.
+- **Admin session cookie** — signed (HMAC-SHA256), `httpOnly`, `Secure`,
+  `SameSite=Strict`, scoped to the `/admin` path, and expires after 12 hours.
+  There's no session table to invalidate — the signing secret is derived from
+  `admin.json`, so editing the password revokes all sessions immediately.
 
 ---
 
