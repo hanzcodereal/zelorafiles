@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { generateId, validateUpload, uploadFile } from '../lib/supabase.js';
+import { generateId, validateUpload, uploadFile, getExtension } from '../lib/supabase.js';
 
 const upload = new Hono();
 
@@ -24,7 +24,7 @@ upload.post('/', async (c) => {
       size: result.size,
       expiresAt: result.expiresAt,
       permanent: result.permanent,
-      url: `/f/${result.id}`,
+      url: `/f/${result.id}${getExtension(result.filename)}`,
     });
   } catch (err) {
     console.error('Upload error:', err);
