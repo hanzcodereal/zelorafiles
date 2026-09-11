@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import uploadRoute from './routes/upload.js';
 import fileRoute from './routes/file.js';
 import cronRoute from './routes/cron.js';
+import adminRoute from './routes/admin.js';
 import { readFile } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 
@@ -44,6 +45,7 @@ function servePublic(filename) {
 app.route('/upload', uploadRoute);
 app.route('/f', fileRoute);
 app.route('/cron', cronRoute);
+app.route('/admin', adminRoute);
 
 app.get('/', async (c) => {
   try {
